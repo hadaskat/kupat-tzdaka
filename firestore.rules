@@ -1,0 +1,164 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Only the super admin may change state anywhere in the system (spec §3).
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.role == 'superAdmin';
+    }
+
+    function isFundManager() {
+      return isSignedIn() && request.auth.token.role == 'fundManager';
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // A fund manager supervises only the funds listed on their own user doc.
+    // Kept out of the custom claim on purpose: claims are capped at ~1KB and a
+    // yeshiva can have many funds.
+    function supervises(fundId) {
+      return isFundManager() && fundId in userDoc().fundIds;
+    }
+
+    // Read access to fund-scoped data: super admin sees everything, fund
+    // manager only their own funds.
+    function canReadFund(fundId) {
+      return isSuperAdmin() || supervises(fundId);
+    }
+
+    // users/{uid}
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
+      // role and fundIds drive authorization, so they may only be set by the
+      // setUserRole / setFundPermissions Cloud Functions via the Admin SDK.
+      allow update: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin())
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['role', 'fundIds']);
+      allow create, delete: if false;
+    }
+
+    // usernames/{username} - written only by Cloud Functions (Admin SDK)
+    match /usernames/{username} {
+      allow read, write: if false;
+    }
+
+    // orgSettings - readable by any admin-side user, written only by the
+    // updateOrgSettings Cloud Function (it holds the commission percentage).
+    match /orgSettings/{docId} {
+      allow read: if isSuperAdmin() || isFundManager();
+      allow write: if false;
+    }
+
+    // integrations/{id} - sync cursors and last-run results. Written only by
+    // the sync Cloud Function; a client rewriting the cursor could silently
+    // skip or re-import donations.
+    match /integrations/{integrationId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // funds/{fundId}
+    match /funds/{fundId} {
+      // Clients need the fund list to pick one when donating or requesting.
+      allow read: if isSignedIn();
+      allow create: if isSuperAdmin();
+      // balance is denormalized and must only ever change via the ledger
+      // Cloud Functions (Admin SDK, bypasses rules) inside a transaction.
+      allow update: if isSuperAdmin()
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['balance']);
+      allow delete: if false;
+
+      // funds/{fundId}/ledger/{entryId} - append-only source of truth
+      match /ledger/{entryId} {
+        allow read: if canReadFund(fundId);
+        allow write: if false;
+      }
+    }
+
+    // people/{personId} - the unified donor+beneficiary card (spec §4.7).
+    // Cross-fund personal data, so it stays super-admin only; a fund manager
+    // supervising one fund has no business reading the whole membership list.
+    match /people/{personId} {
+      allow read: if isSuperAdmin()
+                  || (isSignedIn() && resource.data.linkedUserId == request.auth.uid);
+      // totalDonated/totalReceived are money aggregates maintained by the
+      // ledger Cloud Functions, so they are never client-writable.
+      allow create: if isSuperAdmin()
+                    && request.resource.data.totalDonated == 0
+                    && request.resource.data.totalReceived == 0;
+      allow update: if isSuperAdmin()
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['totalDonated', 'totalReceived']);
+      allow delete: if false;
+    }
+
+    // donations/{donationId}
+    match /donations/{donationId} {
+      allow read: if isSuperAdmin()
+        || supervises(resource.data.fundId)
+        || (isSignedIn() && resource.data.clientUserId == request.auth.uid)
+        || (isSignedIn() && resource.data.personId != null &&
+            exists(/databases/$(database)/documents/people/$(resource.data.personId)) &&
+            get(/databases/$(database)/documents/people/$(resource.data.personId)).data.linkedUserId == request.auth.uid);
+      // Clients may only record their own pledge - never a bank/credit-card or
+      // already-confirmed donation, and never one carrying a commission split.
+      allow create: if isSuperAdmin() ||
+        (isSignedIn() &&
+         request.resource.data.source == 'clientPledge' &&
+         request.resource.data.personId == null &&
+         request.resource.data.status == 'pledged' &&
+         request.resource.data.feeAmount == 0 &&
+         request.resource.data.clientUserId == request.auth.uid);
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // supportRequests/{requestId}
+    match /supportRequests/{requestId} {
+      allow read: if isSuperAdmin()
+        || supervises(resource.data.fundId)
+        || (isSignedIn() && resource.data.clientUserId == request.auth.uid);
+      allow create: if isSignedIn() &&
+        request.resource.data.clientUserId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      // Clients may only cancel their own still-pending request; approving,
+      // paying and every other transition is super-admin-only (spec §4.6).
+      allow update: if isSuperAdmin() ||
+        (isSignedIn() && resource.data.clientUserId == request.auth.uid &&
+         resource.data.status == 'pending' && request.resource.data.status == 'rejected');
+      allow delete: if false;
+
+      match /statusHistory/{entryId} {
+        allow read: if isSuperAdmin()
+          || (isSignedIn() &&
+              get(/databases/$(database)/documents/supportRequests/$(requestId)).data.clientUserId == request.auth.uid)
+          || (isFundManager() &&
+              get(/databases/$(database)/documents/supportRequests/$(requestId)).data.fundId in userDoc().fundIds);
+        allow write: if false;
+      }
+    }
+
+    // auditLog - append-only, written by Cloud Functions only. Fund managers
+    // may read entries for their own funds as an oversight tool (spec §4.11).
+    match /auditLog/{entryId} {
+      allow read: if isSuperAdmin() || supervises(resource.data.fundId);
+      allow write: if false;
+    }
+
+    // importedFiles and parsing jobs - super admin only
+    match /importedFiles/{fileId} {
+      allow read, write: if isSuperAdmin();
+
+      match /parsingJobs/{jobId} {
+        allow read, write: if isSuperAdmin();
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'superAdmin';
+    }
+
+    // imports/{uid}/{fileName} - bank/credit-card CSV/Excel uploads
+    match /imports/{uid}/{fileName} {
+      allow read, write: if isAdmin()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('text/csv|application/vnd.*|application/csv');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

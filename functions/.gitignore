@@ -1,0 +1,10 @@
+node_modules/
+lib/
+*.log
+
+# Local credentials - the Nedarim Plus API password lives here in development.
+# It must never be committed; in production it comes from Firebase Secrets.
+.env
+.env.*
+!.env.example
+serviceAccountKey.json

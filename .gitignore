@@ -31,7 +31,18 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# firebase functions build output & local config
+functions/lib/
+functions/node_modules/
+.firebase/
+# local emulator snapshot - development data, not source
+.emulator-data/
+*.firebaserc.local
+serviceAccountKey.json
+*-debug.log
 
 # typescript
 *.tsbuildinfo

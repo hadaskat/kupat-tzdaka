@@ -1,0 +1,28 @@
+{
+  "name": "functions",
+  "version": "1.0.0",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.1",
+    "papaparse": "^5.4.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.15",
+    "typescript": "^5.6.3"
+  }
+}

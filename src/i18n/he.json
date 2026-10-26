@@ -1,0 +1,66 @@
+{
+  "common": {
+    "appName": "קופת צדקה",
+    "loading": "טוען...",
+    "save": "שמירה",
+    "cancel": "ביטול",
+    "confirm": "אישור",
+    "reject": "דחייה",
+    "delete": "מחיקה",
+    "edit": "עריכה",
+    "add": "הוספה",
+    "error": "אירעה שגיאה",
+    "currencySuffix": "₪"
+  },
+  "auth": {
+    "loginTitle": "כניסה למערכת",
+    "registerTitle": "הרשמה",
+    "username": "שם משתמש",
+    "password": "סיסמה",
+    "fullName": "שם מלא",
+    "phone": "טלפון",
+    "loginButton": "התחברות",
+    "registerButton": "הרשמה",
+    "noAccount": "אין לך חשבון? הרשמה",
+    "haveAccount": "יש לך חשבון? התחברות",
+    "invalidCredentials": "שם משתמש או סיסמה שגויים"
+  },
+  "admin": {
+    "dashboard": "לוח בקרה",
+    "funds": "קרנות",
+    "import": "ייבוא נתונים",
+    "donors": "תורמים",
+    "beneficiaries": "נתמכים",
+    "requests": "בקשות",
+    "totalBalance": "יתרה כוללת"
+  },
+  "client": {
+    "home": "בית",
+    "donate": "תרומה",
+    "myDonations": "התרומות שלי",
+    "myRequests": "הבקשות שלי",
+    "newRequest": "בקשה חדשה",
+    "profile": "פרופיל"
+  },
+  "funds": {
+    "name": "שם הקרן",
+    "category": "סוג קרן",
+    "balance": "יתרה",
+    "categoryDonation": "תרומות",
+    "categorySupport": "תמיכות",
+    "categoryLoan": "הלוואות",
+    "categoryGeneral": "כללי"
+  },
+  "requests": {
+    "typeSupport": "בקשת תמיכה",
+    "typeLoan": "בקשת הלוואה",
+    "amount": "סכום מבוקש",
+    "reason": "נימוק",
+    "statusPending": "ממתין",
+    "statusApproved": "אושר",
+    "statusRejected": "נדחה",
+    "statusPaid": "שולם",
+    "statusInRepayment": "בהחזר",
+    "statusClosed": "סגור"
+  }
+}
